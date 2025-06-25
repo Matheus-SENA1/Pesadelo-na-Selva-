@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>jogo</title>
+  <link rel="stylesheet" href="CSS/styles.css">
+</head>
+<body>
+
+  <div id="leftPanel">
+    <div>
+      <button onclick="pauseGame()">⏸ Pause</button>
+      <button onclick="resumeGame()">▶ Continuar</button>
+      <button onclick="restartGame()">🔁 Reiniciar</button>
+      <br><br> <br><br> <br><br>
+       <img src="IMG/dragaoPainel.png" alt="Personagem" style="width: 150px; margin-bottom: 30px;" />
+    </div>
+    <div id="timer">Caçador em: 15s</div>
+  </div>
+
+  <canvas id="gameCanvas" width="1000" height="700"></canvas>
+
+  <div id="rightPanel">
+    <h3>Inventário</h3>
+    <div id="inventory"></div>
+    <img src="IMG/SegeundoDragao.png" alt="Mapa" style="width: 250px; margin-top: 50px;" />
+  </div>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    let paused = false;
+    let gameOver = false;
+    let vidas = 3;
+    let tempo = 15;
+    let timerInterval;
+    let cacadorAtivado = false;
+
+    const blocoImg = new Image();
+    blocoImg.src = "./IMG/bloco.jpg";
+
+    const inventory = document.getElementById("inventory");
+
+    const itemSources = [
+      "./IMG/bola.png",
+      "./IMG/Binóculo.png",
+      "./IMG/Barraca.png",
+      "./IMG/Bota.png",
+      "./IMG/bulsola.png",
+      "./IMG/Caderno.png",
+      "./IMG/cantil.png",
+      "./IMG/capaDeChuva.png",
+      "./IMG/corda.png",
+      "./IMG/espingarda.png",
+      "./IMG/Facão.png",
+      "./IMG/garrafaDeAgua.png",
+      "./IMG/Isqueiro.png",
+      "./IMG/LANTERNA.png",
+      "./IMG/Lata.png",
+      "./IMG/Mapa.png",
+      "./IMG/mochila.png",
+      "./IMG/Pá.png",
+      "./IMG/Pilha.png",
+      "./IMG/Primeiro socorros.png",
+      "./IMG/tocha.png"
+    ]; 
+
+    const itemIcons = itemSources.map(src => {
+      const img = new Image();
+      img.src = src;
+      return img;
+    });
+
+    const totalSlots = 20;
+    const blocks = [];
+    const itemSlots = [];
+
+    const paddle = {
+      x: canvas.width / 2 - 50,
+      y: canvas.height - 20,
+      width: 100,
+      height: 20,
+      dx: 6
+    };
+
+    const ball = {
+      x: canvas.width / 2,
+      y: canvas.height - 30,
+      radius: 15,
+      dx: 5,
+      dy: -5
+    };
+
+    const cacador = {
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 100,
+      velocidade: 2,
+      ativo: false,
+      img: new Image()
+    };
+
+   cacador.img.src = './IMG/cacadorfaseum.png';
+
+    const bolaImg = new Image();
+    bolaImg.src = "./IMG/bola.png";
+
+    const blockRowCount = 4;
+    const blockColumnCount = 14;
+    const blockWidth = 60;
+    const blockHeight = 60;
+    const blockPadding = 10;
+    const blockOffsetTop = 50;
+    const blockOffsetLeft = 15;
+
+    const itensFixos = [];
+
+    function criarInventarioFixo() {
+      itensFixos.length = 0;
+      const indicesDisponiveis = [...Array(itemIcons.length).keys()];
+      while (itensFixos.length < totalSlots) {
+        const indexAleatorio = Math.floor(Math.random() * indicesDisponiveis.length);
+        const escolhido = indicesDisponiveis.splice(indexAleatorio, 1)[0];
+        itensFixos.push(itemIcons[escolhido]);
+      }
+    }
+
+    function configurarInventario() {
+      inventory.innerHTML = "";
+      itemSlots.length = 0;
+      for (let i = 0; i < totalSlots; i++) {
+        const slot = document.createElement("div");
+        slot.classList.add("slot");
+        const img = document.createElement("img");
+        img.src = itensFixos[i].src;
+        img.alt = "Item";
+        img.classList.add("item-icon");
+        slot.appendChild(img);
+        inventory.appendChild(slot);
+        itemSlots.push(slot);
+      }
+    }
+
+    function initBlocks() {
+      blocks.length = 0;
+      const totalBlocos = blockRowCount * blockColumnCount;
+      const posicoesComItem = [];
+      while (posicoesComItem.length < totalSlots) {
+        const pos = Math.floor(Math.random() * totalBlocos);
+        if (!posicoesComItem.includes(pos)) posicoesComItem.push(pos);
+      }
+
+      let itemIndex = 0;
+      let count = 0;
+
+      for (let c = 0; c < blockColumnCount; c++) {
+        blocks[c] = [];
+        for (let r = 0; r < blockRowCount; r++) {
+          const idBloco = count++;
+          let item = null;
+          let slotIndex = null;
+
+          if (posicoesComItem.includes(idBloco)) {
+            item = itensFixos[itemIndex];
+            slotIndex = itemIndex;
+            itemIndex++;
+          }
+
+          blocks[c][r] = {
+            x: 0,
+            y: 0,
+            status: 1,
+            item: item,
+            showItem: false,
+            itemY: 0,
+            slotIndex: slotIndex
+          };
+        }
+      }
+    }
+
+    criarInventarioFixo();
+    configurarInventario();
+    initBlocks();
+
+    let rightPressed = false;
+    let leftPressed = false;
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Right" || e.key === "ArrowRight") rightPressed = true;
+      else if (e.key === "Left" || e.key === "ArrowLeft") leftPressed = true;
+    });
+
+    document.addEventListener("keyup", (e) => {
+      if (e.key === "Right" || e.key === "ArrowRight") rightPressed = false;
+      else if (e.key === "Left" || e.key === "ArrowLeft") leftPressed = false;
+    });
+
+    function pauseGame() {
+      paused = true;
+    }
+
+    function resumeGame() {
+      if (!gameOver) {
+        paused = false;
+        draw();
+      }
+    }
+
+    function restartGame() {
+      vidas = 3;
+      tempo = 15;
+      cacadorAtivado = false;
+      gameOver = false;
+      paused = false;
+      cacador.ativo = false;
+      document.getElementById("timer").textContent = "Caçador em: 15s";
+      itemSlots.forEach(slot => slot.classList.remove("collected"));
+      criarInventarioFixo();
+      configurarInventario();
+      initBlocks();
+      resetBall();
+      clearInterval(timerInterval);
+      startTimer();
+      draw();
+    }
+
+    function resetBall() {
+      ball.x = canvas.width / 2;
+      ball.y = canvas.height - 30;
+      ball.dx = 5;
+      ball.dy = -5;
+    }
+
+    function drawPaddle() {
+      ctx.fillStyle = "#C09300";
+      ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
+    }
+
+    function drawBall() {
+      if (bolaImg.complete) {
+        ctx.drawImage(bolaImg, ball.x - ball.radius, ball.y - ball.radius, ball.radius * 2, ball.radius * 2);
+      } else {
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffdd00";
+        ctx.fill();
+        ctx.closePath();
+      }
+    }
+
+    function drawBlocks() {
+      for (let c = 0; c < blockColumnCount; c++) {
+        for (let r = 0; r < blockRowCount; r++) {
+          const b = blocks[c][r];
+          if (b.status === 1) {
+            b.x = c * (blockWidth + blockPadding) + blockOffsetLeft;
+            b.y = r * (blockHeight + blockPadding) + blockOffsetTop;
+
+            if (blocoImg.complete) {
+              ctx.drawImage(blocoImg, b.x, b.y, blockWidth, blockHeight);
+            } else {
+              ctx.fillStyle = "#ff4444";
+              ctx.fillRect(b.x, b.y, blockWidth, blockHeight);
+            }
+          }
+        }
+      }
+    }
+
+    function drawItems() {
+      for (let c = 0; c < blockColumnCount; c++) {
+        for (let r = 0; r < blockRowCount; r++) {
+          const b = blocks[c][r];
+          if (b.showItem && b.item) {
+            b.itemY += 2;
+            if (b.item.complete) {
+              ctx.drawImage(b.item, b.x + blockWidth / 2 - 20, b.itemY, 40, 40);
+            } else {
+              ctx.fillStyle = "#fff";
+              ctx.fillRect(b.x + blockWidth / 2 - 10, b.itemY, 20, 20);
+            }
+
+            const itemX = b.x + blockWidth / 2;
+
+            if (
+              b.itemY >= paddle.y &&
+              b.itemY <= paddle.y + paddle.height &&
+              itemX >= paddle.x &&
+              itemX <= paddle.x + paddle.width
+            ) {
+              b.showItem = false;
+              itemSlots[b.slotIndex].classList.add("collected");
+              checkWin();
+            }
+
+            if (b.itemY > canvas.height) {
+              b.showItem = false;
+              itemSlots[b.slotIndex].classList.add("collected");
+              checkWin();
+            }
+          }
+        }
+      }
+    }
+
+    function checkWin() {
+      const collected = document.querySelectorAll('.slot.collected').length;
+      if (collected === totalSlots) {
+        gameOver = true;
+        paused = true;
+        alert("Parabéns! Você coletou todos os itens!");
+        clearInterval(timerInterval);
+      }
+    }
+
+    function drawCacador() {
+      if (cacador.ativo) {
+        if (cacador.img.complete) {
+          ctx.drawImage(cacador.img, cacador.x, cacador.y, cacador.width, cacador.height);
+        } else {
+          ctx.fillStyle = "red";
+          ctx.fillRect(cacador.x, cacador.y, cacador.width, cacador.height);
+        }
+      }
+    }
+
+    function moveCacador() {
+      if (!cacador.ativo || paused || gameOver) return;
+
+      let dx = ball.x - cacador.x;
+      let dy = ball.y - cacador.y;
+      let distance = Math.sqrt(dx * dx + dy * dy);
+
+      if (distance > 0) {
+        dx /= distance;
+        dy /= distance;
+        cacador.x += dx * cacador.velocidade;
+        cacador.y += dy * cacador.velocidade;
+      }
+
+      const hitbox = {
+        x: cacador.x + 10,
+        y: cacador.y + 10,
+        width: cacador.width - 20,
+        height: cacador.height - 20
+      };
+
+      if (bolaColideComRetangulo(ball, hitbox)) {
+        gameOver = true;
+        paused = true;
+        alert("O caçador pegou a bola! Game Over!");
+        clearInterval(timerInterval);
+        restartGame();
+      }
+    }
+
+    function bolaColideComRetangulo(circle, rect) {
+      const closestX = Math.max(rect.x, Math.min(circle.x, rect.x + rect.width));
+      const closestY = Math.max(rect.y, Math.min(circle.y, rect.y + rect.height));
+      const dx = circle.x - closestX;
+      const dy = circle.y - closestY;
+      return dx * dx + dy * dy < circle.radius * circle.radius;
+    }
+
+    function ativarCacador() {
+      cacador.ativo = true;
+      cacadorAtivado = true;
+      cacador.x = Math.random() * (canvas.width - cacador.width);
+      cacador.y = Math.random() * (canvas.height - cacador.height);
+    }
+
+    function drawPauseMessage() {
+      ctx.font = "48px Arial";
+      ctx.fillStyle = "#ffffff";
+      ctx.fillText("PAUSE", canvas.width / 2 - 90, canvas.height / 2);
+    }
+
+    function drawVidas() {
+      ctx.font = "28px Arial";
+      ctx.fillStyle = "red";
+      ctx.fillText("❤️".repeat(vidas), 20, 40);
+    }
+
+    function collisionDetection() {
+      for (let c = 0; c < blockColumnCount; c++) {
+        for (let r = 0; r < blockRowCount; r++) {
+          const b = blocks[c][r];
+          if (b.status === 1) {
+            if (
+              ball.x > b.x && ball.x < b.x + blockWidth &&
+              ball.y > b.y && ball.y < b.y + blockHeight
+            ) {
+              ball.dy = -ball.dy;
+              b.status = 0;
+
+              if (b.item) {
+                b.showItem = true;
+                b.itemY = b.y;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    function startTimer() {
+      timerInterval = setInterval(() => {
+        if (!paused && !gameOver) {
+          tempo--;
+          document.getElementById("timer").textContent = `Caçador em: ${tempo}s`;
+          if (tempo <= 0 && !cacadorAtivado) {
+            clearInterval(timerInterval);
+            ativarCacador();
+            document.getElementById("timer").textContent = "Caçador ativo!";
+          }
+        }
+      }, 1000);
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      drawBlocks();
+      drawBall();
+      drawPaddle();
+      drawItems();
+      drawCacador();
+      drawVidas();
+      collisionDetection();
+
+      if (paused) {
+        drawPauseMessage();
+        return;
+      }
+
+      moveCacador();
+
+      ball.x += ball.dx;
+      ball.y += ball.dy;
+
+      if (ball.x + ball.radius > canvas.width || ball.x - ball.radius < 0) ball.dx = -ball.dx;
+      if (ball.y - ball.radius < 0) ball.dy = -ball.dy;
+
+      if (
+        ball.y + ball.radius > paddle.y &&
+        ball.x > paddle.x &&
+        ball.x < paddle.x + paddle.width
+      ) {
+        ball.dy = -ball.dy;
+      }
+
+      if (ball.y + ball.radius > canvas.height) {
+        vidas--;
+        if (vidas === 0) {
+          paused = true;
+          gameOver = true;
+          clearInterval(timerInterval);
+          alert("Você perdeu todas as vidas!");
+          return;
+        } else {
+          resetBall();
+        }
+      }
+
+      if (rightPressed && paddle.x < canvas.width - paddle.width) paddle.x += paddle.dx;
+      else if (leftPressed && paddle.x > 0) paddle.x -= paddle.dx;
+
+      requestAnimationFrame(draw);
+    }
+
+    startTimer();
+    draw();
+  </script>
+</body>
+</html>

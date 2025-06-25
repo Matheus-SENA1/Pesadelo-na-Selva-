@@ -1,0 +1,83 @@
+body {
+      margin: 0;
+      background: #634303;
+      color: #fff;
+      font-family: sans-serif;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+      background-image: url("../IMG/FaseDoisFudo.webp");
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      margin: 0;
+      padding: 0;
+    }
+
+    #leftPanel, #rightPanel {
+      width: 200px;
+      padding: 20px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    #leftPanel {
+      border-right: 2px solid #444;
+    }
+
+    #rightPanel {
+      border-left: 2px solid #444;
+      
+    }
+
+    canvas {
+      border: 2px solid #fff;
+      background-image: url('../IMG/fundoF2.png');
+      background-size: cover;
+    }
+
+    button {
+      padding: 10px;
+      font-size: 16px;
+      cursor: pointer;
+      background-color: #555;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      margin-bottom: 10px;
+    }
+
+    #inventory {
+      width: 330px;
+      position: absolute;
+      margin-top: 80px;
+      display: flex;
+      flex-wrap: wrap;
+      grid-template-columns: repeat(5, 50px);
+      grid-gap: 10px;
+    }
+
+    .slot {
+      width: 50px;
+      height: 50px;
+      border: 1px solid #888;
+      background-color: #222;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 24px;
+    }
+
+    .slot.collected {
+      filter: grayscale(1);
+      opacity: 0.5;
+    }
+
+    .item-icon {
+      max-width: 90%;
+      max-height: 90%;
+      object-fit: contain;
+    }

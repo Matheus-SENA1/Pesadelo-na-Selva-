@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Jogo da Bolinha com Itens Ocultos</title>
+  <style>
+     body {
+      margin: 0;
+      background: #222;
+      color: #fff;
+      font-family: sans-serif;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    #leftPanel, #rightPanel {
+      width: 200px;
+      padding: 20px;
+      box-sizing: border-box;
+      background-color: #333;
+    }
+
+    #leftPanel {
+      border-right: 2px solid #444;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    #rightPanel {
+      border-left: 2px solid #444;
+    }
+
+    #centerCanvas {
+      flex-grow: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #111;
+    }
+
+    canvas {
+      border: 2px solid #fff;
+      background-color: #000;
+    }
+
+    button {
+      padding: 10px;
+      font-size: 16px;
+      cursor: pointer;
+      background-color: #555;
+      color: white;
+      border: none;
+      border-radius: 5px;
+    }
+
+    #inventory {
+      display: grid;
+      grid-template-columns: repeat(4, 50px);
+      grid-gap: 10px;
+      margin-top: 10px;
+    }
+
+    .slot {
+      width: 50px;
+      height: 50px;
+      border: 1px solid #888;
+      background-color: #222;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .slot img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+  </style>
+</head>
+<body>
+   <!-- Painel Esquerdo -->
+  <div id="leftPanel">
+    <button onclick="pauseGame()">⏸ Pause</button>
+    <button onclick="resumeGame()">▶ Continuar</button>
+  </div>
+
+<canvas id="gameCanvas" width="1000" height="700"></canvas>
+
+
+  <!-- Painel Direito com Inventário -->
+  <div id="rightPanel">
+    <h3>Inventário</h3>
+    <div id="inventory"></div>
+  </div>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+ // Variáveis para controle de pausa
+    let paused = false;
+
+    function pauseGame() {
+      paused = true;
+    }
+
+    function resumeGame() {
+      paused = false;
+      draw();
+    }
+
+    // Inventário
+    const inventory = document.getElementById("inventory");
+    const inventorySlots = 20;
+
+    for (let i = 0; i < inventorySlots; i++) {
+      const slot = document.createElement("div");
+      slot.classList.add("slot");
+      inventory.appendChild(slot);
+    }
+
+    // Adiciona item de exemplo no inventário (após 2s)
+    setTimeout(() => {
+      addItemToInventory("https://cdn-icons-png.flaticon.com/512/3523/3523063.png");
+    }, 2000);
+
+    function addItemToInventory(imgUrl) {
+      const slots = document.querySelectorAll(".slot");
+      for (const slot of slots) {
+        if (slot.children.length === 0) {
+          const img = document.createElement("img");
+          img.src = imgUrl;
+          slot.appendChild(img);
+          break;
+        }
+      }
+    }
+
+// Jogador (barra)
+const paddle = {
+  x: canvas.width / 2 - 50,
+  y: canvas.height - 20,
+  width: 100,
+  height: 60,
+  dx: 6
+};
+
+// Bolinha
+const ball = {
+  x: canvas.width / 2,
+  y: canvas.height - 30,
+  radius: 8,
+  speed: 4,
+  dx: 4,
+  dy: -4
+};
+
+// Blocos
+const blockRowCount = 5;
+const blockColumnCount = 17;
+const blockWidth = 50;
+const blockHeight = 50;
+const blockPadding = 8;
+const blockOffsetTop = 40;
+const blockOffsetLeft = 10;
+
+// Ícones possíveis de item escondido
+const itemIcons = ["⭐", "❤️", "⚡"];
+const blocks = [];
+
+function initBlocks() {
+  for (let c = 0; c < blockColumnCount; c++) {
+    blocks[c] = [];
+    for (let r = 0; r < blockRowCount; r++) {
+      // 20% de chance de ter item
+      const hasItem = Math.random() < 0.2;
+      const item = hasItem ? itemIcons[Math.floor(Math.random() * itemIcons.length)] : null;
+      blocks[c][r] = { x: 0, y: 0, status: 1, item: item, showItem: false, itemY: 0 };
+    }
+  }
+}
+
+initBlocks();
+
+// Controles
+let rightPressed = false;
+let leftPressed = false;
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Right" || e.key === "ArrowRight") rightPressed = true;
+  else if (e.key === "Left" || e.key === "ArrowLeft") leftPressed = true;
+});
+document.addEventListener("keyup", (e) => {
+  if (e.key === "Right" || e.key === "ArrowRight") rightPressed = false;
+  else if (e.key === "Left" || e.key === "ArrowLeft") leftPressed = false;
+});
+
+// Desenho
+function drawPaddle() {
+  ctx.fillStyle = "#00ffcc";
+  ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
+}
+
+function drawBall() {
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+  ctx.fillStyle = "#ffdd00";
+  ctx.fill();
+  ctx.closePath();
+}
+
+function drawBlocks() {
+  for (let c = 0; c < blockColumnCount; c++) {
+    for (let r = 0; r < blockRowCount; r++) {
+      const b = blocks[c][r];
+      if (b.status === 1) {
+        const x = c * (blockWidth + blockPadding) + blockOffsetLeft;
+        const y = r * (blockHeight + blockPadding) + blockOffsetTop;
+        b.x = x;
+        b.y = y;
+        ctx.fillStyle = "#ff4444";
+        ctx.fillRect(x, y, blockWidth, blockHeight);
+      }
+    }
+  }
+}
+
+function drawItems() {
+  for (let c = 0; c < blockColumnCount; c++) {
+    for (let r = 0; r < blockRowCount; r++) {
+      const b = blocks[c][r];
+      if (b.showItem && b.item) {
+        b.itemY += 2;
+        ctx.font = "20px Arial";
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText(b.item, b.x + blockWidth / 2 - 8, b.itemY);
+        
+        // Colisão com a barra (pegar item)
+        if (b.itemY >= paddle.y && b.itemY <= paddle.y + paddle.height &&
+            b.x + blockWidth / 2 >= paddle.x && b.x + blockWidth / 2 <= paddle.x + paddle.width) {
+          b.showItem = false;
+          console.log("Item coletado: " + b.item);
+        }
+
+        // Item caiu fora
+        if (b.itemY > canvas.height) {
+          b.showItem = false;
+        }
+      }
+    }
+  }
+}
+
+function collisionDetection() {
+  for (let c = 0; c < blockColumnCount; c++) {
+    for (let r = 0; r < blockRowCount; r++) {
+      const b = blocks[c][r];
+      if (b.status === 1) {
+        if (
+          ball.x > b.x &&
+          ball.x < b.x + blockWidth &&
+          ball.y > b.y &&
+          ball.y < b.y + blockHeight
+        ) {
+          ball.dy = -ball.dy;
+          b.status = 0;
+
+          if (b.item) {
+            b.showItem = true;
+            b.itemY = b.y;
+          }
+        }
+      }
+    }
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawBlocks();
+  drawBall();
+  drawPaddle();
+  drawItems();
+  collisionDetection();
+
+  // Movimento da bolinha
+  ball.x += ball.dx;
+  ball.y += ball.dy;
+
+  // Colisões laterais
+  if (ball.x + ball.radius > canvas.width || ball.x - ball.radius < 0) {
+    ball.dx = -ball.dx;
+  }
+  if (ball.y - ball.radius < 0) {
+    ball.dy = -ball.dy;
+  }
+
+  // Fim de jogo
+  if (ball.y + ball.radius > canvas.height) {
+    alert("Fim de jogo!");
+    document.location.reload();
+  }
+
+  // Colisão com paddle
+  if (
+    ball.y + ball.radius > paddle.y &&
+    ball.x > paddle.x &&
+    ball.x < paddle.x + paddle.width
+  ) {
+    ball.dy = -ball.dy;
+  }
+
+  // Movimento da barra
+  if (rightPressed && paddle.x < canvas.width - paddle.width) {
+    paddle.x += paddle.dx;
+  } else if (leftPressed && paddle.x > 0) {
+    paddle.x -= paddle.dx;
+  }
+
+  requestAnimationFrame(draw);
+}
+
+draw();
+</script>
+</body>
+</html>
